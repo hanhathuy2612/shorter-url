@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/short_url_db
+    username: root
+    password: root
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: myStrongPass
+  cache:
+    type: redis
+
+server:
+  port: 8080

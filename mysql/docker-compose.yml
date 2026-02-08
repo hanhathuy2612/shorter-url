@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:9.2.0
+    container_name: MySQL
+    environment:
+      MYSQL_ROOT_PASSWORD: root   # Đặt mật khẩu root cho MySQL
+    ports:
+      - "3306:3306"  # Mapping port 3306 của container ra máy host
+    volumes:
+      - E:\docker\mysql\volume:/var/lib/mysql  # Lưu trữ dữ liệu MySQL bên ngoài container
+    networks:
+      - mysql_network
+
+volumes:
+  mysql-data:
+    driver: local
+
+networks:
+  mysql_network:
+    driver: bridge
