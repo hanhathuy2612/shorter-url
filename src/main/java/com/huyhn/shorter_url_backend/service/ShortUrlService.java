@@ -88,12 +88,33 @@ public class ShortUrlService {
     @CacheEvict(value = SHORT_URL_VALUE, key = "#code")
     public void delete(String code) {
         ShortUrl shortUrl = shortUrlRepository.findByCode(code)
-                .orElseThrow(() -> new RuntimeException("Code not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
         shortUrlRepository.delete(shortUrl);
     }
 
     public List<ShortUrlDTO> getPaginated(Pageable pageable) {
         return shortUrlRepository.findAll(pageable).map(this::toDTO).toList();
+    }
+
+    public void increaseClick(String code) {
+        redisTemplate.opsForValue().increment(CLICK_KEY + code);
+    }
+
+    @Scheduled(fixedRate = FIXED_RATE, timeUnit = TimeUnit.SECONDS)
+    public void syncClicksToDB() {
+        Set<String> keys = redisTemplate.keys(CLICK_KEY + "*");
+
+        for (String key : keys) {
+            String code = key.replace(CLICK_KEY, "");
+            Integer count = (Integer) redisTemplate.opsForValue().get(key);
+            if (count == null) {
+                continue;
+            }
+
+            shortUrlRepository.increaseClicks(code, Long.valueOf(count));
+
+            redisTemplate.delete(key);
+        }
     }
 
     private void validateUrl(String originUrl) throws URISyntaxException {
@@ -121,26 +142,5 @@ public class ShortUrlService {
                 .code(shortUrl.getCode())
                 .clicks(shortUrl.getClicks())
                 .build();
-    }
-
-    public void increaseClick(String code) {
-        redisTemplate.opsForValue().increment(CLICK_KEY + code);
-    }
-
-    @Scheduled(fixedRate = FIXED_RATE, timeUnit = TimeUnit.SECONDS)
-    public void syncClicksToDB() {
-        Set<String> keys = redisTemplate.keys(CLICK_KEY + "*");
-
-        for (String key : keys) {
-            String code = key.replace(CLICK_KEY, "");
-            Integer count = (Integer) redisTemplate.opsForValue().get(key);
-            if (count == null) {
-                continue;
-            }
-
-            shortUrlRepository.increaseClicks(code, Long.valueOf(count));
-
-            redisTemplate.delete(key);
-        }
     }
 }
