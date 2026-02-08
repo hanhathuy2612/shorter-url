@@ -11,11 +11,8 @@ import java.time.Duration;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class RateLimitService {
+public class RateLimitService implements IRateLimitService {
     private final RedisTemplate<String, Object> redisTemplate;
-
-    private static final int LIMIT = 20;
-    private static final int WINDOW_SECONDS = 60;
 
     public boolean allowRequest(String key) {
         long now = System.currentTimeMillis();
