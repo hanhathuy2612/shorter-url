@@ -3,6 +3,8 @@ package com.huyhn.shorter_url_backend.service;
 import com.huyhn.shorter_url_backend.domain.ShortUrl;
 import com.huyhn.shorter_url_backend.dto.CreateShortUrlRequest;
 import com.huyhn.shorter_url_backend.dto.ShortUrlDTO;
+import com.huyhn.shorter_url_backend.exception.BusinessException;
+import com.huyhn.shorter_url_backend.exception.ErrorCode;
 import com.huyhn.shorter_url_backend.repository.ShortUrlRepository;
 import com.huyhn.shorter_url_backend.utils.CodeUtils;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +18,9 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -38,7 +42,7 @@ public class ShortUrlService {
     public String redirect(String code) {
         ShortUrl shortUrl = shortUrlRepository.findByCode(code)
                 .orElseThrow(
-                        () -> new RuntimeException("Code not found")
+                        () -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND)
                 );
 
         return shortUrl.getOriginalUrl();
@@ -48,19 +52,21 @@ public class ShortUrlService {
         return shortUrlRepository
                 .findByCode(code)
                 .map(this::toDTO)
-                .orElseThrow(() -> new RuntimeException("Code not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
     }
 
     public ShortUrlDTO create(CreateShortUrlRequest request) {
         try {
-            URI uri = new URI(request.getOriginalUrl());
-            String host = uri.getHost();
+            validateUrl(request.getOriginalUrl());
 
-            if (host.equals("localhost") || host.equals(domain)) {
-                throw new RuntimeException("Self redirect is not allowed");
+            ShortUrl shortUrl = shortUrlRepository
+                    .findByOriginalUrl(request.getOriginalUrl())
+                    .orElse(null);
+            if (shortUrl != null) {
+                return toDTO(shortUrl);
             }
 
-            ShortUrl shortUrl = new ShortUrl();
+            shortUrl = new ShortUrl();
             shortUrl.setOriginalUrl(request.getOriginalUrl());
             shortUrl = shortUrlRepository.save(shortUrl);
 
@@ -73,9 +79,9 @@ public class ShortUrlService {
                     .code(shortUrl.getCode())
                     .clicks(0L)
                     .build();
-        } catch (Exception e) {
+        } catch (URISyntaxException e) {
             log.error(e.getMessage());
-            throw new RuntimeException(e);
+            throw new BusinessException(ErrorCode.INVALID_URL, Map.of("url", request.getOriginalUrl()));
         }
     }
 
@@ -88,6 +94,24 @@ public class ShortUrlService {
 
     public List<ShortUrlDTO> getPaginated(Pageable pageable) {
         return shortUrlRepository.findAll(pageable).map(this::toDTO).toList();
+    }
+
+    private void validateUrl(String originUrl) throws URISyntaxException {
+        if (originUrl.isEmpty()) {
+            throw new BusinessException(ErrorCode.ORIGINAL_URL_EMPTY);
+        }
+
+        URI uri = new URI(originUrl);
+        String host = uri.getHost();
+        String scheme = uri.getScheme();
+
+        if (host == null || scheme == null) {
+            throw new BusinessException(ErrorCode.HOST_EMPTY);
+        }
+
+        if (host.equals("localhost") || host.equals(domain) || scheme.equals("http")) {
+            throw new BusinessException(ErrorCode.SELF_HOST_NOT_ALLOW);
+        }
     }
 
     private ShortUrlDTO toDTO(ShortUrl shortUrl) {
