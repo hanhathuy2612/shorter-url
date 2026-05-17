@@ -1,14 +1,12 @@
 package com.huyhn.shorter_url_backend.service;
 
-import com.huyhn.shorter_url_backend.domain.ShortUrl;
-import com.huyhn.shorter_url_backend.dto.CreateShortUrlRequest;
-import com.huyhn.shorter_url_backend.dto.ShortUrlDTO;
-import com.huyhn.shorter_url_backend.exception.BusinessException;
-import com.huyhn.shorter_url_backend.exception.ErrorCode;
-import com.huyhn.shorter_url_backend.repository.ShortUrlRepository;
-import com.huyhn.shorter_url_backend.utils.CodeUtils;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -17,12 +15,16 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import com.huyhn.shorter_url_backend.domain.ShortUrl;
+import com.huyhn.shorter_url_backend.dto.CreateShortUrlRequest;
+import com.huyhn.shorter_url_backend.dto.ShortUrlDTO;
+import com.huyhn.shorter_url_backend.exception.BusinessException;
+import com.huyhn.shorter_url_backend.exception.ErrorCode;
+import com.huyhn.shorter_url_backend.repository.ShortUrlRepository;
+import com.huyhn.shorter_url_backend.utils.CodeUtils;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @Service
@@ -31,9 +33,9 @@ public class ShortUrlService {
     private final ShortUrlRepository shortUrlRepository;
     private final RedisTemplate<String, Object> redisTemplate;
 
-    private final static String CLICK_KEY = "clicks::";
-    private final static String SHORT_URL_VALUE = "short_url";
-    private final static int FIXED_RATE = 15;
+    private static final String CLICK_KEY = "clicks::";
+    private static final String SHORT_URL_VALUE = "short_url";
+    private static final int FIXED_RATE = 15;
 
     @Value("${app.domain:yourDomain}")
     private String domain;
@@ -42,8 +44,7 @@ public class ShortUrlService {
     public String redirect(String code) {
         ShortUrl shortUrl = shortUrlRepository.findByCode(code)
                 .orElseThrow(
-                        () -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND)
-                );
+                        () -> new BusinessException(ErrorCode.ENTITY_NOT_FOUND));
 
         return shortUrl.getOriginalUrl();
     }
@@ -62,6 +63,7 @@ public class ShortUrlService {
             ShortUrl shortUrl = shortUrlRepository
                     .findByOriginalUrl(request.getOriginalUrl())
                     .orElse(null);
+
             if (shortUrl != null) {
                 return toDTO(shortUrl);
             }
